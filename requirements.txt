@@ -1,5 +1,4 @@
 numpy
-pydensecrf
 tifffile
 scipy
 progressbar2
