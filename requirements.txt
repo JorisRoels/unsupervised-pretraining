@@ -1,0 +1,9 @@
+numpy
+tifffile
+scipy
+progressbar2
+scikit-image
+imgaug
+tensorboardX
+torch
+torchvision
