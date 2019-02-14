@@ -5,7 +5,6 @@ import torch.nn.functional as F
 import numpy as np
 import progressbar as pb
 from util.tools import gaussian_window
-from util.crf import dense_crf
 
 # sliding window iterator
 def sliding_window(image, step_size, window_size):
@@ -157,11 +156,6 @@ def segment(data, net, input_shape, batch_size=1, in_channels=1, step_size=None,
     segmentation = np.divide(seg_cum[0:counts_cum.shape[0]-2*z_pad, :, :],
                              counts_cum[0:counts_cum.shape[0] - 2*z_pad, :, :])
 
-    # CRF post-processing if necessary
-    if crf_iterations>0:
-        data_denorm = data*std + mu
-        segmentation = crf(data_denorm, segmentation, iterations=crf_iterations)
-
     return segmentation
 
 # segment a data set with a given network with a sliding window
@@ -218,59 +212,9 @@ def segment_pixels(data, net, input_shape, batch_size=1, in_channels=1, crf_iter
     segmentation = segmentation[in_channels//2:segmentation.shape[0]-in_channels//2,
                         input_shape[0]//2:segmentation.shape[1]-input_shape[0]//2,
                         input_shape[1]//2:segmentation.shape[2]-input_shape[1]//2]
-    
+
     data = data[in_channels//2:data.shape[0]-in_channels//2,
                         input_shape[0]//2:data.shape[1]-input_shape[0]//2,
                         input_shape[1]//2:data.shape[2]-input_shape[1]//2]
-
-    # CRF post-processing if necessary
-    if crf_iterations>0:
-        data_denorm = data*std + mu
-        segmentation = crf(data_denorm, segmentation, iterations=crf_iterations)
-
-    return segmentation
-
-# post-processing crf
-# window size should be 2D
-def crf(data, segmentation_probs, window_size=(512,512), iterations=10):
-
-    step_size = (1, window_size[0]//2, window_size[1]//2)
-
-    # gaussian window for smooth block merging
-    g_window = gaussian_window((1,window_size[0],window_size[1]), sigma=window_size[-1]/4)
-
-    # prep data
-    seg_probs = segmentation_probs
-    if len(data.shape)==2:
-        data = data[np.newaxis,...]
-        seg_probs = segmentation_probs[np.newaxis,...]
-    probs = np.zeros((2, seg_probs.shape[0], seg_probs.shape[1], seg_probs.shape[2]))
-    probs[0] = seg_probs
-    probs[1] = 1-seg_probs
-    # probs = -np.log(probs)
-
-    sw = sliding_window(data, step_size=step_size, window_size=(1,window_size[0],window_size[1]))
-
-    # allocate space
-    seg_cum = np.zeros(data.shape)
-    counts_cum = np.zeros(data.shape)
-
-    for (z, y, x, inputs) in sw:
-
-        # inputs_prepped = np.zeros((inputs.shape[1],inputs.shape[2],3)) # grayscale to rgb hack
-        inputs_prepped = inputs[0]
-        # inputs_prepped[...,1] = inputs[0]
-        # inputs_prepped[...,2] = inputs[0]
-
-        probs_block = probs[:, z, y:y + window_size[0], x:x + window_size[1]]
-
-        # compute CRF
-        seg_crf = dense_crf(inputs_prepped.astype(np.uint8), probs_block, iterations=iterations)
-
-        # cumulate results
-        seg_cum[z:z + 1, y:y + window_size[0], x:x + window_size[1]] += np.multiply(g_window, seg_crf[0])
-        counts_cum[z:z + 1, y:y + window_size[0], x:x + window_size[1]] += g_window
-
-    segmentation = np.divide(seg_cum, counts_cum)
 
     return segmentation

@@ -16,10 +16,10 @@ from torch.utils.data import DataLoader
 from copy import deepcopy
 
 from data.datasets import StronglyLabeledVolumeDataset, UnlabeledVolumeDataset
-from networks.unet import UNet2D, UNet3D
+from networks.unet import UNet2D
 from util.io import imwrite3D
 from util.losses import CrossEntropyLoss, MSELoss
-from util.preprocessing import get_augmenters_2d, get_augmenters_3d
+from util.preprocessing import get_augmenters_2d
 from util.validation import segment
 from util.metrics import jaccard, dice, accuracy_metrics
 
@@ -28,8 +28,6 @@ from util.metrics import jaccard, dice, accuracy_metrics
 """
 print('[%s] Parsing arguments' % (datetime.datetime.now()))
 parser = argparse.ArgumentParser()
-# general parameters
-parser.add_argument("--method", help="Specifies 2D or 3D U-Net", type=str, default="2D")
 
 # logging parameters
 parser.add_argument("--log_dir", help="Logging directory", type=str, default="logs")
@@ -38,8 +36,8 @@ parser.add_argument("--data_train", help="Data for training", type=str, default=
 parser.add_argument("--labels_train", help="Labels for training", type=str, default="../../data/epfl/training_groundtruth.tif")
 parser.add_argument("--data_test", help="Data for testing", type=str, default="../../data/epfl/testing.tif")
 parser.add_argument("--labels_test", help="Labels for testing", type=str, default="../../data/epfl/testing_groundtruth.tif")
-parser.add_argument("--data_unsupervised_train", help="Data for unsupervised training", type=str, default=None)
-parser.add_argument("--data_unsupervised_test", help="Data for unsupervised testing", type=str, default=None)
+parser.add_argument("--data_unsupervised_train", help="Data for unsupervised training", type=str, default="../../data/epfl/training.tif")
+parser.add_argument("--data_unsupervised_test", help="Data for unsupervised testing", type=str, default="../../data/epfl/testing.tif")
 parser.add_argument("--print_stats", help="Number of iterations between each time to log training losses", type=int, default=100)
 
 # network parameters
@@ -81,18 +79,11 @@ if args.write_dir is not None:
 """
     Load the data
 """
-if args.method == "2D":
-    input_shape = (1, args.input_size[0], args.input_size[1])
-else:
-    input_shape = args.input_size
+input_shape = (1, args.input_size[0], args.input_size[1])
 print('[%s] Loading data' % (datetime.datetime.now()))
 # augmenters
-if args.method == "2D":
-    train_xtransform_us, train_ytransform_us, test_xtransform_us, test_ytransform_us = get_augmenters_2d(augment_noise=(args.augment_noise==1))
-    train_xtransform, train_ytransform, test_xtransform, test_ytransform = get_augmenters_2d(augment_noise=(args.augment_noise==1))
-else:
-    train_xtransform_us, train_ytransform_us, test_xtransform_us, test_ytransform_us = get_augmenters_3d(augment_noise=(args.augment_noise==1))
-    train_xtransform, train_ytransform, test_xtransform, test_ytransform = get_augmenters_3d(augment_noise=(args.augment_noise==1))
+train_xtransform_us, train_ytransform_us, test_xtransform_us, test_ytransform_us = get_augmenters_2d(augment_noise=(args.augment_noise == 1))
+train_xtransform, train_ytransform, test_xtransform, test_ytransform = get_augmenters_2d(augment_noise=(args.augment_noise == 1))
 # load data
 train = StronglyLabeledVolumeDataset(args.data_train, args.labels_train, input_shape, transform=train_xtransform, target_transform=train_ytransform, preprocess=args.preprocess)
 test = StronglyLabeledVolumeDataset(args.data_test, args.labels_test, input_shape, transform=test_xtransform, target_transform=test_ytransform, preprocess=args.preprocess)
@@ -112,10 +103,7 @@ else:
 """
 if args.data_unsupervised_train is not None:
     print('[%s] Setting up optimization for unsupervised training if necessary' % (datetime.datetime.now()))
-    if args.method == "2D":
-        net_us = UNet2D(out_channels=1, feature_maps=args.fm, levels=args.levels, group_norm=(args.group_norm == 1), pretrain_unsupervised=(args.data_unsupervised_train is not None))
-    else:
-        net_us = UNet3D(out_channels=1, feature_maps=args.fm, levels=args.levels, group_norm=(args.group_norm==1), pretrain_unsupervised=(args.data_unsupervised_train is not None))
+    net_us = UNet2D(out_channels=1, feature_maps=args.fm, levels=args.levels, group_norm=(args.group_norm == 1), pretrain_unsupervised=(args.data_unsupervised_train is not None))
 
     """
         Train the network unsupervised
@@ -130,10 +118,7 @@ if args.data_unsupervised_train is not None:
     Setup optimization for supervised training
 """
 print('[%s] Setting up optimization for supervised training' % (datetime.datetime.now()))
-if args.method == "2D":
-    net = UNet2D(feature_maps=args.fm, levels=args.levels, group_norm=(args.group_norm == 1))
-else:
-    net = UNet3D(feature_maps=args.fm, levels=args.levels, group_norm=(args.group_norm==1))
+net = UNet2D(feature_maps=args.fm, levels=args.levels, group_norm=(args.group_norm == 1), pretrain_unsupervised=False)
 if args.data_unsupervised_train is not None:
     net.encoder = deepcopy(net_us.encoder)
 

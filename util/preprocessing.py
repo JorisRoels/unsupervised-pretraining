@@ -201,42 +201,5 @@ def get_augmenters_2d(augment_noise=True):
 
     return train_xtransform, train_ytransform, test_xtransform, test_ytransform
 
-def get_augmenters_3d(augment_noise=True):
-    # standard augmenters: rotation, flips, deformations
-
-    # generate seeds for synchronized augmentation
-    s1 = np.random.randint(0, 2 ** 32)
-    s2 = np.random.randint(0, 2 ** 32)
-    s3 = np.random.randint(0, 2 ** 32)
-    s4 = np.random.randint(0, 2 ** 32)
-    s5 = np.random.randint(0, 2 ** 32)
-
-    # define transforms
-    if augment_noise:
-        train_xtransform = transforms.Compose([Rotate90(seed=s1),
-                                               FlipX(seed=s2),
-                                               FlipY(seed=s3),
-                                               FlipZ(seed=s4),
-                                               RandomDeformations(seed=s5),
-                                               AddNoise(sigma_max=0.2),
-                                               ToFloatTensor()])
-    else:
-        train_xtransform = transforms.Compose([Rotate90(seed=s1),
-                                               FlipX(seed=s2),
-                                               FlipY(seed=s3),
-                                               FlipZ(seed=s4),
-                                               RandomDeformations(seed=s5),
-                                               ToFloatTensor()])
-    train_ytransform = transforms.Compose([Rotate90(seed=s1),
-                                           FlipX(seed=s2),
-                                           FlipY(seed=s3),
-                                           FlipZ(seed=s4),
-                                           RandomDeformations(seed=s5, thr=True),
-                                           ToLongTensor()])
-    test_xtransform = transforms.Compose([ToFloatTensor()])
-    test_ytransform = transforms.Compose([ToLongTensor()])
-
-    return train_xtransform, train_ytransform, test_xtransform, test_ytransform
-
 def normalize(x, mu, std):
     return (x-mu)/std
